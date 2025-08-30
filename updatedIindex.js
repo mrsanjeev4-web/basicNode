@@ -132,38 +132,95 @@ app.get("/users/:id/posts/:postId", (req, res) => {
 // }
 
 // 5. Query Parameters (URL query string)
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+
+const app = express();
+app.use(cors());
+
+// MongoDB connect
+await mongoose.connect("mongodb://127.0.0.1:27017/testdb");
+
+// Schema
+const UserSchema = new mongoose.Schema({
+  name: String,
+  age: Number,
+  city: String
+});
+const User = mongoose.model("User", UserSchema);
+
+// Search API with filters, pagination & sorting
 app.get("/search", async (req, res) => {
   try {
-    const { name, age, city } = req.query;
+    const { name, city, minAge, maxAge, page = 1, limit = 10, sortBy = "name", order = "asc" } = req.query;
+
+    // Build filter dynamically
     let filter = {};
-    if (name) filter.name = new RegExp(name, 'i');
-    if (age) filter.age = age;
-    if (city) filter.city = new RegExp(city, 'i');
-    
-    const users = await User.find(filter);
-    res.status(200).json({ 
-      success: true, 
-      message: "Search results", 
-      users, 
-      searchParams: req.query 
+    if (name) filter.name = new RegExp(name, "i");  // regex search
+    if (city) filter.city = new RegExp(city, "i");
+    if (minAge || maxAge) {
+      filter.age = {};
+      if (minAge) filter.age.$gte = Number(minAge);
+      if (maxAge) filter.age.$lte = Number(maxAge);
+    }
+
+    // Pagination
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Sorting
+    let sort = {};
+    sort[sortBy] = order === "desc" ? -1 : 1;
+
+    // Fetch data
+    const users = await User.find(filter).skip(skip).limit(Number(limit)).sort(sort);
+
+    // Count total
+    const total = await User.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      message: "Search results",
+      meta: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / limit)
+      },
+      users
     });
+
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      message: "Search failed", 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: "Search failed",
+      error: error.message
     });
   }
 });
-// Frontend call: 
-// try {
-//   const response = await axios.get('http://localhost:5000/search', {
-//     params: { name: 'john', age: 25, city: 'NYC' }
-//   });
-//   console.log(response.data);
-// } catch (error) {
-//   console.error('Error:', error.response?.data || error.message);
-// }
+
+// http://localhost:5000/search?minAge=20&maxAge=30&sortBy=age&order=desc
+
+ //try {
+  //  const response = await axios.get("http://localhost:5000/search", {
+     // params: {
+   //     name: "john",
+   //     city: "Delhi",
+   //     minAge: 20,
+   //     maxAge: 40,
+   //     page: 2,
+    //    limit: 5,
+    //    sortBy: "age",
+   //     order: "desc"
+     // }
+   // });
+
+ //   console.log(response.data);
+ // } catch (error) {
+   // console.error("Error:", error.response?.data || error.message);
+ // }
+
+
 
 // 6. Multiple Query Parameters with Pagination
 app.get("/users", async (req, res) => {
