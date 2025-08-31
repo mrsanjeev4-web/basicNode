@@ -15,46 +15,6 @@ function signToken(payload) {
 }
 
 
-router.post(
-  "/signup",
-  [
-    body("name").trim().notEmpty().withMessage("Name is required"),
-    body("email").isEmail().withMessage("Valid email required"),
-    body("password").isLength({ min: 6 }).withMessage("Min 6 chars password"),
-  ],
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ isError: true, errors: errors.array() });
-      }
-
-      const { name, email, password } = req.body;
-
-      const exists = await User.findOne({ email });
-      if (exists) {
-        return res.status(409).json({ isError: true, Message: "Email already in use" });
-      }
-
-      const user = await User.create({ name, email, password });
-      const token = signToken({ id: user._id, email: user.email });
-
-      // don’t send password
-      const { password: _, ...userSafe } = user.toObject();
-
-      return res.status(201).json({
-        isError: false,
-        Message: "User created",
-        token,
-        user: userSafe,
-      });
-    } catch (err) {
-      console.error("Signup error:", err);
-      return res.status(500).json({ isError: true, Message: "Internal server error" });
-    }
-  }
-);
-
 
 router.post(
   "/login",
